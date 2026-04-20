@@ -1,0 +1,6 @@
+{
+  "name": "Ash Dataset",
+  "description": "Dataset containing ash character images and prompts",
+  "type": "image",
+  "format": "png"
+}

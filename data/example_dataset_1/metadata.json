@@ -1,0 +1,6 @@
+{
+  "name": "Example Dataset 1", 
+  "description": "An example dataset for testing", 
+  "type": "image", 
+  "format": "jpg"
+}
