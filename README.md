@@ -10,6 +10,7 @@
 - [`ai_toolkit_common.py`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/ai_toolkit_common.py)：公共配置、镜像构建和数据同步逻辑
 - [`run_ai_toolkit_ui.py`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/run_ai_toolkit_ui.py)：UI 入口脚本
 - [`run_ai_toolkit_train.py`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/run_ai_toolkit_train.py)：训练入口脚本
+- [`config`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/config)：训练配置示例目录
 - [`data`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/data)：本地示例数据目录，启动时会同步到 Modal 数据集 Volume
 - [`.env.example`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/.env.example)：环境变量模板
 - [`requirements.txt`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/requirements.txt)：本地依赖
@@ -84,7 +85,7 @@ modal serve .\run_ai_toolkit_ui.py
 
 ```dotenv
 AI_TOOLKIT_LOCAL_CONFIG_DIR=./config
-AI_TOOLKIT_TRAIN_CONFIG=your_job.yaml
+AI_TOOLKIT_TRAIN_CONFIG=train_lora_flux_dev_modal_minimal.yaml
 AI_TOOLKIT_MODEL_VOLUME=ai-toolkit-models
 ```
 
@@ -106,6 +107,16 @@ modal run .\run_ai_toolkit_train.py -- --config-file-list-str=job1.yaml,job2.yam
 - 读取本地配置目录中的 YAML
 - 在容器内执行 `python run.py <config>`
 - 把训练输出写入 `AI_TOOLKIT_MODEL_VOLUME`
+
+仓库内已提供最小可跑模板：
+
+- [`config/train_lora_flux_dev_modal_minimal.yaml`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/config/train_lora_flux_dev_modal_minimal.yaml)
+
+这个模板基于上游 `ai-toolkit` 的 FLUX LoRA 示例思路调整而来，默认使用本仓库的 `ash` 数据集路径 `/root/ai-toolkit/data/ash`。参考上游文档与示例：
+
+- https://github.com/ostris/ai-toolkit
+- https://github.com/ostris/ai-toolkit/blob/main/run.py
+- https://github.com/ostris/ai-toolkit/blob/main/config/examples/train_lora_wan21_1b_24gb.yaml
 
 ## 数据持久化
 

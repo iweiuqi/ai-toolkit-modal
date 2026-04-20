@@ -1,0 +1,60 @@
+job: extension
+config:
+  name: "ash_flux_lora_modal_minimal"
+  process:
+    - type: "sd_trainer"
+      training_folder: "/root/ai-toolkit/modal_output"
+      device: "cuda:0"
+
+      network:
+        type: "lora"
+        linear: 16
+        linear_alpha: 16
+
+      save:
+        dtype: "float16"
+        save_every: 250
+        max_step_saves_to_keep: 2
+        push_to_hub: false
+
+      datasets:
+        - folder_path: "/root/ai-toolkit/data/ash"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          resolution: [512]
+
+      train:
+        batch_size: 1
+        steps: 1000
+        gradient_accumulation: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
+        optimizer: "adamw8bit"
+        lr: 1e-4
+        skip_first_sample: true
+
+      model:
+        name_or_path: "black-forest-labs/FLUX.1-dev"
+        arch: "flux"
+        low_vram: true
+
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        width: 512
+        height: 512
+        prompts:
+          - "portrait of Ash, red jacket, forest background, detailed illustration"
+        neg: ""
+        seed: 42
+        walk_seed: true
+        guidance_scale: 4
+        sample_steps: 20
+
+      meta:
+        name: "[name]"
+        version: "1.0"
