@@ -190,10 +190,10 @@ def sync_directory(source_root: str, target_root: str, overwrite: bool) -> None:
 
 
 def prepare_datasets() -> None:
-    if LOCAL_DATA_FOLDER:
+    if os.path.exists(LOCAL_DATA_MOUNT_PATH):
         sync_directory(LOCAL_DATA_MOUNT_PATH, DATA_MOUNT_PATH, overwrite=True)
 
-    if LOCAL_DATASET_SOURCE:
+    if os.path.exists(LOCAL_DATASET_SOURCE_MOUNT_PATH):
         sync_directory(LOCAL_DATASET_SOURCE_MOUNT_PATH, DATA_MOUNT_PATH, overwrite=False)
 
     try:

@@ -1,26 +1,218 @@
 import os
 import shlex
+import shutil
+import subprocess
+from pathlib import Path
 
 import modal
 
-from ai_toolkit_common import (
-    DATA_MOUNT_PATH,
-    GPU_TYPE,
-    MODEL_VOLUME_NAME,
-    PERSIST_DIR,
-    TOOLKIT_ROOT,
-    TRAIN_CONFIG_FILE,
-    TRAIN_EXTRA_ARGS,
-    TRAIN_OUTPUT_DIR,
-    TRAIN_TIMEOUT_SECONDS,
-    build_image,
-    datasets_volume,
-    model_volume,
-    persist_volume,
-    prepare_datasets,
-    resolve_container_config_path,
-    run_checked,
-)
+try:
+    from ai_toolkit_common import (
+        DATA_MOUNT_PATH,
+        GPU_TYPE,
+        MODEL_VOLUME_NAME,
+        PERSIST_DIR,
+        TOOLKIT_ROOT,
+        TRAIN_CONFIG_FILE,
+        TRAIN_EXTRA_ARGS,
+        TRAIN_OUTPUT_DIR,
+        TRAIN_TIMEOUT_SECONDS,
+        build_image,
+        datasets_volume,
+        model_volume,
+        persist_volume,
+        prepare_datasets,
+        resolve_container_config_path,
+        run_checked,
+    )
+except ModuleNotFoundError:
+    ROOT_DIR = Path(__file__).resolve().parent
+    TOOLKIT_ROOT = "/root/ai-toolkit"
+    DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/data"
+    LOCAL_DATA_MOUNT_PATH = "/root/local_data"
+    LOCAL_DATASET_SOURCE_MOUNT_PATH = "/mnt/dataset_source"
+    LOCAL_CONFIGS_MOUNT_PATH = "/root/local_configs"
+
+    def load_dotenv(dotenv_path: Path) -> None:
+        if not dotenv_path.exists():
+            return
+
+        for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if not key:
+                continue
+
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+
+            os.environ.setdefault(key, value)
+
+    def env_int(name: str, default: int) -> int:
+        raw_value = os.environ.get(name, str(default))
+        try:
+            return int(raw_value)
+        except ValueError as exc:
+            raise ValueError(f"{name} must be an integer, got {raw_value!r}") from exc
+
+    def existing_local_dir(path_value: str) -> str:
+        if not path_value:
+            return ""
+
+        local_path = Path(path_value).expanduser()
+        if not local_path.is_absolute():
+            local_path = (ROOT_DIR / local_path).resolve()
+
+        if local_path.exists() and local_path.is_dir():
+            return str(local_path)
+
+        return ""
+
+    def resolve_local_file(path_value: str) -> str:
+        if not path_value:
+            return ""
+
+        local_path = Path(path_value).expanduser()
+        if not local_path.is_absolute():
+            local_path = (ROOT_DIR / local_path).resolve()
+
+        if local_path.exists() and local_path.is_file():
+            return str(local_path)
+
+        return ""
+
+    load_dotenv(ROOT_DIR / ".env")
+
+    GPU_TYPE = os.environ.get("AI_TOOLKIT_GPU", "L4")
+    TRAIN_TIMEOUT_SECONDS = env_int("AI_TOOLKIT_TRAIN_TIMEOUT", 7200)
+    PERSIST_DIR = "/root/ai-toolkit/modal_persist"
+    PERSIST_VOLUME_NAME = os.environ.get("AI_TOOLKIT_UI_VOLUME", "ai-toolkit-ui-data")
+    DATA_VOLUME_NAME = os.environ.get("AI_TOOLKIT_DATA_VOLUME", "ai-toolkit-datasets")
+    MODEL_VOLUME_NAME = os.environ.get("AI_TOOLKIT_MODEL_VOLUME", "ai-toolkit-models")
+    LOCAL_DATA_FOLDER = existing_local_dir(
+        os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "data"))
+    )
+    LOCAL_DATASET_SOURCE = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_DATASET_SOURCE", ""))
+    LOCAL_CONFIG_DIR = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_CONFIG_DIR", ""))
+    TRAIN_CONFIG_FILE = os.environ.get("AI_TOOLKIT_TRAIN_CONFIG", "")
+    TRAIN_EXTRA_ARGS = os.environ.get("AI_TOOLKIT_TRAIN_EXTRA_ARGS", "")
+    TRAIN_OUTPUT_DIR = os.environ.get("AI_TOOLKIT_TRAIN_OUTPUT_DIR", "/root/ai-toolkit/modal_output")
+
+    persist_volume = modal.Volume.from_name(PERSIST_VOLUME_NAME, create_if_missing=True)
+    datasets_volume = modal.Volume.from_name(DATA_VOLUME_NAME, create_if_missing=True)
+    model_volume = modal.Volume.from_name(MODEL_VOLUME_NAME, create_if_missing=True)
+
+    def build_image(include_ui_build: bool) -> modal.Image:
+        image = (
+            modal.Image.debian_slim(python_version="3.11")
+            .apt_install(
+                "git",
+                "curl",
+                "ca-certificates",
+                "build-essential",
+                "python3",
+                "make",
+                "g++",
+                "libgl1",
+                "libglib2.0-0",
+            )
+            .env({"HF_HUB_ENABLE_HF_TRANSFER": "1", "DISABLE_TELEMETRY": "YES"})
+            .run_commands(
+                "bash -lc 'curl -fsSL https://deb.nodesource.com/setup_20.x | bash -'",
+                "bash -lc 'apt-get update && apt-get install -y nodejs'",
+                "bash -lc 'rm -rf /root/ai-toolkit && git clone --recursive https://github.com/ostris/ai-toolkit.git /root/ai-toolkit'",
+                "bash -lc 'cd /root/ai-toolkit && git submodule update --init --recursive'",
+                "bash -lc 'python -m pip install --upgrade pip'",
+                "bash -lc 'python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121'",
+                "bash -lc 'python -m pip install -r /root/ai-toolkit/requirements.txt'",
+            )
+        )
+
+        if include_ui_build:
+            image = image.run_commands(
+                "bash -lc 'cd /root/ai-toolkit/ui && npm install && npm run update_db && npm run build'"
+            )
+
+        if LOCAL_DATA_FOLDER:
+            image = image.add_local_dir(LOCAL_DATA_FOLDER, LOCAL_DATA_MOUNT_PATH, copy=True)
+
+        if LOCAL_DATASET_SOURCE:
+            image = image.add_local_dir(
+                LOCAL_DATASET_SOURCE,
+                LOCAL_DATASET_SOURCE_MOUNT_PATH,
+                copy=True,
+            )
+
+        if LOCAL_CONFIG_DIR:
+            image = image.add_local_dir(LOCAL_CONFIG_DIR, LOCAL_CONFIGS_MOUNT_PATH, copy=True)
+
+        return image
+
+    def run_checked(cmd: list[str], cwd: str, env: dict[str, str], label: str) -> None:
+        result = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"{label} failed with exit code {result.returncode}\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+
+    def sync_directory(source_root: str, target_root: str, overwrite: bool) -> None:
+        if not os.path.exists(source_root):
+            return
+
+        os.makedirs(target_root, exist_ok=True)
+
+        for item in os.listdir(source_root):
+            src = os.path.join(source_root, item)
+            dst = os.path.join(target_root, item)
+
+            if os.path.isdir(src):
+                if os.path.exists(dst):
+                    if overwrite:
+                        shutil.rmtree(dst)
+                        shutil.copytree(src, dst)
+                else:
+                    shutil.copytree(src, dst)
+            else:
+                if overwrite or not os.path.exists(dst):
+                    shutil.copy2(src, dst)
+
+    def prepare_datasets() -> None:
+        if os.path.exists(LOCAL_DATA_MOUNT_PATH):
+            sync_directory(LOCAL_DATA_MOUNT_PATH, DATA_MOUNT_PATH, overwrite=True)
+
+        if os.path.exists(LOCAL_DATASET_SOURCE_MOUNT_PATH):
+            sync_directory(LOCAL_DATASET_SOURCE_MOUNT_PATH, DATA_MOUNT_PATH, overwrite=False)
+
+        try:
+            datasets_volume.commit()
+        except Exception as exc:
+            print(f"[WARN] Could not commit datasets volume: {exc}")
+
+    def resolve_container_config_path(config_value: str) -> str:
+        if not config_value:
+            return ""
+
+        if config_value.startswith("/"):
+            return config_value
+
+        local_file = resolve_local_file(config_value)
+        if local_file and LOCAL_CONFIG_DIR:
+            local_config_dir_path = Path(LOCAL_CONFIG_DIR)
+            try:
+                relative_path = Path(local_file).relative_to(local_config_dir_path)
+                return f"{LOCAL_CONFIGS_MOUNT_PATH}/{relative_path.as_posix()}"
+            except ValueError:
+                pass
+
+        return f"{LOCAL_CONFIGS_MOUNT_PATH}/{Path(config_value).as_posix()}"
 
 
 image = build_image(include_ui_build=False)
