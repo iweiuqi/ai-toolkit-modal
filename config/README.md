@@ -30,6 +30,6 @@ modal run .\run_ai_toolkit_train.py
 
 说明：
 
-- 当前模板默认使用容器内数据集路径 `/root/ai-toolkit/data/ash`
+- 当前模板默认使用容器内数据集路径 `/root/ai-toolkit/datasets/ash`
 - 这只是最小起步模板，不保证适合所有显卡和模型版本
 - 如果你的 GPU 不是 24GB 级别，通常需要进一步调低分辨率、采样频率或更换模型配置

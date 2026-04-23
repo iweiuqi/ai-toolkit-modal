@@ -25,12 +25,13 @@ try:
         prepare_datasets,
         replace_with_symlink,
         run_checked,
+        spawn_logged_process,
     )
 except ModuleNotFoundError:
     ROOT_DIR = Path(__file__).resolve().parent
     TOOLKIT_ROOT = "/root/ai-toolkit"
     UI_ROOT = f"{TOOLKIT_ROOT}/ui"
-    DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/data"
+    DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/datasets"
     OUTPUT_PATH = f"{TOOLKIT_ROOT}/output"
     DB_PATH = f"{TOOLKIT_ROOT}/aitk_db.db"
     LOCAL_DATA_MOUNT_PATH = "/root/local_data"
@@ -89,7 +90,7 @@ except ModuleNotFoundError:
     DATA_VOLUME_NAME = os.environ.get("AI_TOOLKIT_DATA_VOLUME", "ai-toolkit-datasets")
     COMMIT_INTERVAL_SECONDS = env_int("AI_TOOLKIT_VOLUME_COMMIT_INTERVAL", 30)
     LOCAL_DATA_FOLDER = existing_local_dir(
-        os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "data"))
+        os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "datasets"))
     )
     LOCAL_DATASET_SOURCE = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_DATASET_SOURCE", ""))
     LOCAL_CONFIG_DIR = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_CONFIG_DIR", ""))
@@ -144,13 +145,45 @@ except ModuleNotFoundError:
         return image
 
     def run_checked(cmd: list[str], cwd: str, env: dict[str, str], label: str) -> None:
+        print(f"[INFO] {label}: {' '.join(cmd)} (cwd={cwd})", flush=True)
         result = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+        if result.stdout:
+            print(f"[{label} stdout]\n{result.stdout}", flush=True)
+        if result.stderr:
+            print(f"[{label} stderr]\n{result.stderr}", flush=True)
         if result.returncode != 0:
             raise RuntimeError(
                 f"{label} failed with exit code {result.returncode}\n"
                 f"stdout:\n{result.stdout}\n"
                 f"stderr:\n{result.stderr}"
             )
+
+    def spawn_logged_process(
+        cmd: list[str],
+        cwd: str,
+        env: dict[str, str],
+        label: str,
+    ) -> subprocess.Popen:
+        print(f"[INFO] Starting {label}: {' '.join(cmd)} (cwd={cwd})", flush=True)
+        process = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        def pump_output() -> None:
+            assert process.stdout is not None
+            for line in process.stdout:
+                print(f"[{label}] {line.rstrip()}", flush=True)
+            return_code = process.wait()
+            print(f"[INFO] {label} exited with code {return_code}", flush=True)
+
+        threading.Thread(target=pump_output, daemon=True).start()
+        return process
 
     def replace_with_symlink(link_path: str, target_path: str) -> None:
         if os.path.islink(link_path) or os.path.isfile(link_path):
@@ -230,6 +263,8 @@ def ui():
     worker_env = dict(os.environ)
     worker_env["NODE_ENV"] = "production"
     worker_env["DATABASE_URL"] = f"file:{persistent_db}"
+    worker_env["PYTHONUNBUFFERED"] = "1"
+    worker_env["NODE_NO_WARNINGS"] = worker_env.get("NODE_NO_WARNINGS", "0")
 
     run_checked(["npx", "prisma", "generate"], cwd=UI_ROOT, env=worker_env, label="Prisma generate")
     run_checked(
@@ -253,9 +288,10 @@ def ui():
 
     threading.Thread(target=commit_loop, daemon=True).start()
 
-    subprocess.Popen(["node", "dist/cron/worker.js"], cwd=UI_ROOT, env=worker_env)
-    subprocess.Popen(
+    spawn_logged_process(["node", "dist/cron/worker.js"], cwd=UI_ROOT, env=worker_env, label="cron-worker")
+    spawn_logged_process(
         ["npx", "next", "start", "--port", str(UI_PORT), "--hostname", "0.0.0.0"],
         cwd=UI_ROOT,
         env=worker_env,
+        label="next-server",
     )

@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 import modal
@@ -9,7 +10,7 @@ import modal
 ROOT_DIR = Path(__file__).resolve().parent
 TOOLKIT_ROOT = "/root/ai-toolkit"
 UI_ROOT = f"{TOOLKIT_ROOT}/ui"
-DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/data"
+DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/datasets"
 OUTPUT_PATH = f"{TOOLKIT_ROOT}/output"
 DB_PATH = f"{TOOLKIT_ROOT}/aitk_db.db"
 LOCAL_DATA_MOUNT_PATH = "/root/local_data"
@@ -88,7 +89,7 @@ DATA_VOLUME_NAME = os.environ.get("AI_TOOLKIT_DATA_VOLUME", "ai-toolkit-datasets
 MODEL_VOLUME_NAME = os.environ.get("AI_TOOLKIT_MODEL_VOLUME", "ai-toolkit-models")
 COMMIT_INTERVAL_SECONDS = env_int("AI_TOOLKIT_VOLUME_COMMIT_INTERVAL", 30)
 LOCAL_DATA_FOLDER = existing_local_dir(
-    os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "data"))
+    os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "datasets"))
 )
 LOCAL_DATASET_SOURCE = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_DATASET_SOURCE", ""))
 LOCAL_CONFIG_DIR = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_CONFIG_DIR", ""))
@@ -149,13 +150,46 @@ def build_image(include_ui_build: bool) -> modal.Image:
 
 
 def run_checked(cmd: list[str], cwd: str, env: dict[str, str], label: str) -> None:
+    print(f"[INFO] {label}: {' '.join(cmd)} (cwd={cwd})", flush=True)
     result = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    if result.stdout:
+        print(f"[{label} stdout]\n{result.stdout}", flush=True)
+    if result.stderr:
+        print(f"[{label} stderr]\n{result.stderr}", flush=True)
     if result.returncode != 0:
         raise RuntimeError(
             f"{label} failed with exit code {result.returncode}\n"
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
+
+
+def spawn_logged_process(
+    cmd: list[str],
+    cwd: str,
+    env: dict[str, str],
+    label: str,
+) -> subprocess.Popen:
+    print(f"[INFO] Starting {label}: {' '.join(cmd)} (cwd={cwd})", flush=True)
+    process = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    def pump_output() -> None:
+        assert process.stdout is not None
+        for line in process.stdout:
+            print(f"[{label}] {line.rstrip()}", flush=True)
+        return_code = process.wait()
+        print(f"[INFO] {label} exited with code {return_code}", flush=True)
+
+    threading.Thread(target=pump_output, daemon=True).start()
+    return process
 
 
 def replace_with_symlink(link_path: str, target_path: str) -> None:

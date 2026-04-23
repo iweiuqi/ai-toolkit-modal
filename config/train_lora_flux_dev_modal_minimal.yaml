@@ -18,7 +18,7 @@ config:
         push_to_hub: false
 
       datasets:
-        - folder_path: "/root/ai-toolkit/data/ash"
+        - folder_path: "/root/ai-toolkit/datasets/ash"
           caption_ext: "txt"
           caption_dropout_rate: 0.05
           shuffle_tokens: false

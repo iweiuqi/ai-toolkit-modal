@@ -56,7 +56,7 @@ python -m modal setup
 
 说明：
 
-- `AI_TOOLKIT_LOCAL_DATA_FOLDER=./data` 时，会把仓库内 [`data`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/data) 同步到 Modal 数据集 Volume。
+- `AI_TOOLKIT_LOCAL_DATA_FOLDER=./datasets` 时，会把仓库内 [`datasets`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/datasets) 同步到 Modal 数据集 Volume。
 - `AI_TOOLKIT_LOCAL_DATASET_SOURCE` 适合指向一个更大的本地数据集目录，已有同名数据集时不会覆盖。
 - `AI_TOOLKIT_LOCAL_CONFIG_DIR` 适合放置你自己的 YAML 配置文件。
 - `AI_TOOLKIT_TRAIN_CONFIG` 可以写绝对容器路径，也可以写相对于 `AI_TOOLKIT_LOCAL_CONFIG_DIR` 的路径；多个配置可用逗号分隔。
@@ -112,7 +112,7 @@ modal run .\run_ai_toolkit_train.py -- --config-file-list-str=job1.yaml,job2.yam
 
 - [`config/train_lora_flux_dev_modal_minimal.yaml`](/C:/Users/Xiao/Desktop/github/ai-toolkit-modal/config/train_lora_flux_dev_modal_minimal.yaml)
 
-这个模板基于上游 `ai-toolkit` 的 FLUX LoRA 示例思路调整而来，默认使用本仓库的 `ash` 数据集路径 `/root/ai-toolkit/data/ash`。参考上游文档与示例：
+这个模板基于上游 `ai-toolkit` 的 FLUX LoRA 示例思路调整而来，默认使用本仓库的 `ash` 数据集路径 `/root/ai-toolkit/datasets/ash`。参考上游文档与示例：
 
 - https://github.com/ostris/ai-toolkit
 - https://github.com/ostris/ai-toolkit/blob/main/run.py
@@ -130,7 +130,7 @@ modal run .\run_ai_toolkit_train.py -- --config-file-list-str=job1.yaml,job2.yam
 
 - 数据库：`/root/ai-toolkit/aitk_db.db`
 - 输出：`/root/ai-toolkit/output`
-- 数据集：`/root/ai-toolkit/data`
+- 数据集：`/root/ai-toolkit/datasets`
 - 训练输出：由 `AI_TOOLKIT_TRAIN_OUTPUT_DIR` 指定，默认 `/root/ai-toolkit/modal_output`
 
 ## 当前实现行为

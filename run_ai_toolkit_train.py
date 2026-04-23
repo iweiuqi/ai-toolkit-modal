@@ -28,7 +28,7 @@ try:
 except ModuleNotFoundError:
     ROOT_DIR = Path(__file__).resolve().parent
     TOOLKIT_ROOT = "/root/ai-toolkit"
-    DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/data"
+    DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/datasets"
     LOCAL_DATA_MOUNT_PATH = "/root/local_data"
     LOCAL_DATASET_SOURCE_MOUNT_PATH = "/mnt/dataset_source"
     LOCAL_CONFIGS_MOUNT_PATH = "/root/local_configs"
@@ -96,7 +96,7 @@ except ModuleNotFoundError:
     DATA_VOLUME_NAME = os.environ.get("AI_TOOLKIT_DATA_VOLUME", "ai-toolkit-datasets")
     MODEL_VOLUME_NAME = os.environ.get("AI_TOOLKIT_MODEL_VOLUME", "ai-toolkit-models")
     LOCAL_DATA_FOLDER = existing_local_dir(
-        os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "data"))
+        os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "datasets"))
     )
     LOCAL_DATASET_SOURCE = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_DATASET_SOURCE", ""))
     LOCAL_CONFIG_DIR = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_CONFIG_DIR", ""))
