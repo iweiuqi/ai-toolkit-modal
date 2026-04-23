@@ -14,6 +14,8 @@ try:
         DATA_MOUNT_PATH,
         DB_PATH,
         GPU_TYPE,
+        MODEL_MOUNT_PATH,
+        MODEL_VOLUME_NAME,
         OUTPUT_PATH,
         PERSIST_DIR,
         UI_PORT,
@@ -21,6 +23,7 @@ try:
         UI_TIMEOUT_SECONDS,
         build_image,
         datasets_volume,
+        model_volume,
         persist_volume,
         prepare_datasets,
         replace_with_symlink,
@@ -33,6 +36,7 @@ except ModuleNotFoundError:
     UI_ROOT = f"{TOOLKIT_ROOT}/ui"
     DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/datasets"
     OUTPUT_PATH = f"{TOOLKIT_ROOT}/output"
+    MODEL_MOUNT_PATH = f"{TOOLKIT_ROOT}/modal_output"
     DB_PATH = f"{TOOLKIT_ROOT}/aitk_db.db"
     LOCAL_DATA_MOUNT_PATH = "/root/local_data"
     LOCAL_DATASET_SOURCE_MOUNT_PATH = "/mnt/dataset_source"
@@ -88,6 +92,7 @@ except ModuleNotFoundError:
     PERSIST_DIR = "/root/ai-toolkit/modal_persist"
     PERSIST_VOLUME_NAME = os.environ.get("AI_TOOLKIT_UI_VOLUME", "ai-toolkit-ui-data")
     DATA_VOLUME_NAME = os.environ.get("AI_TOOLKIT_DATA_VOLUME", "ai-toolkit-datasets")
+    MODEL_VOLUME_NAME = os.environ.get("AI_TOOLKIT_MODEL_VOLUME", "ai-toolkit-models")
     COMMIT_INTERVAL_SECONDS = env_int("AI_TOOLKIT_VOLUME_COMMIT_INTERVAL", 30)
     LOCAL_DATA_FOLDER = existing_local_dir(
         os.environ.get("AI_TOOLKIT_LOCAL_DATA_FOLDER", str(ROOT_DIR / "datasets"))
@@ -97,6 +102,7 @@ except ModuleNotFoundError:
 
     persist_volume = modal.Volume.from_name(PERSIST_VOLUME_NAME, create_if_missing=True)
     datasets_volume = modal.Volume.from_name(DATA_VOLUME_NAME, create_if_missing=True)
+    model_volume = modal.Volume.from_name(MODEL_VOLUME_NAME, create_if_missing=True)
 
     def build_image(include_ui_build: bool) -> modal.Image:
         image = (
@@ -236,6 +242,7 @@ app = modal.App(
     volumes={
         PERSIST_DIR: persist_volume,
         DATA_MOUNT_PATH: datasets_volume,
+        MODEL_MOUNT_PATH: model_volume,
     },
 )
 
@@ -250,14 +257,13 @@ def ui():
 
     os.makedirs(PERSIST_DIR, exist_ok=True)
 
-    persistent_output = os.path.join(PERSIST_DIR, "output")
-    os.makedirs(persistent_output, exist_ok=True)
+    os.makedirs(MODEL_MOUNT_PATH, exist_ok=True)
 
     persistent_db = os.path.join(PERSIST_DIR, "aitk_db.db")
     if not os.path.exists(persistent_db):
         open(persistent_db, "ab").close()
 
-    replace_with_symlink(OUTPUT_PATH, persistent_output)
+    replace_with_symlink(OUTPUT_PATH, MODEL_MOUNT_PATH)
     replace_with_symlink(DB_PATH, persistent_db)
     prepare_datasets()
 
@@ -284,6 +290,10 @@ def ui():
                 pass
             try:
                 datasets_volume.commit()
+            except Exception:
+                pass
+            try:
+                model_volume.commit()
             except Exception:
                 pass
 

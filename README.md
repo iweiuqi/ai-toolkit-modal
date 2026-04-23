@@ -52,7 +52,7 @@ python -m modal setup
 - `AI_TOOLKIT_LOCAL_CONFIG_DIR`：训练配置目录，会挂载到容器 `/root/local_configs`
 - `AI_TOOLKIT_TRAIN_CONFIG`：训练默认配置文件，可用逗号分隔多个配置
 - `AI_TOOLKIT_TRAIN_EXTRA_ARGS`：训练附加参数
-- `AI_TOOLKIT_TRAIN_OUTPUT_DIR`：容器内训练输出目录
+- `AI_TOOLKIT_TRAIN_OUTPUT_DIR`：容器内训练输出目录，默认 `/root/ai-toolkit/modal_output`，UI 会映射到 `/root/ai-toolkit/output`
 
 说明：
 

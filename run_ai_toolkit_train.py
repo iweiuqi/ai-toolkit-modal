@@ -29,6 +29,8 @@ except ModuleNotFoundError:
     ROOT_DIR = Path(__file__).resolve().parent
     TOOLKIT_ROOT = "/root/ai-toolkit"
     DATA_MOUNT_PATH = f"{TOOLKIT_ROOT}/datasets"
+    OUTPUT_PATH = f"{TOOLKIT_ROOT}/output"
+    MODEL_MOUNT_PATH = f"{TOOLKIT_ROOT}/modal_output"
     LOCAL_DATA_MOUNT_PATH = "/root/local_data"
     LOCAL_DATASET_SOURCE_MOUNT_PATH = "/mnt/dataset_source"
     LOCAL_CONFIGS_MOUNT_PATH = "/root/local_configs"
@@ -102,7 +104,7 @@ except ModuleNotFoundError:
     LOCAL_CONFIG_DIR = existing_local_dir(os.environ.get("AI_TOOLKIT_LOCAL_CONFIG_DIR", ""))
     TRAIN_CONFIG_FILE = os.environ.get("AI_TOOLKIT_TRAIN_CONFIG", "")
     TRAIN_EXTRA_ARGS = os.environ.get("AI_TOOLKIT_TRAIN_EXTRA_ARGS", "")
-    TRAIN_OUTPUT_DIR = os.environ.get("AI_TOOLKIT_TRAIN_OUTPUT_DIR", "/root/ai-toolkit/modal_output")
+    TRAIN_OUTPUT_DIR = os.environ.get("AI_TOOLKIT_TRAIN_OUTPUT_DIR", MODEL_MOUNT_PATH)
 
     persist_volume = modal.Volume.from_name(PERSIST_VOLUME_NAME, create_if_missing=True)
     datasets_volume = modal.Volume.from_name(DATA_VOLUME_NAME, create_if_missing=True)
